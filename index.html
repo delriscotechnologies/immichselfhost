@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Immich Selfhosted — Private Photo Backup Server</title>
+  <meta name="description" content="A clean technical walkthrough for a selfhosted Immich photo backup server running on Zorin OS with Docker." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700;800;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0000f2;
+      --bg-2: #0000f2;
+      --surface: rgba(255, 255, 255, 0.065);
+      --surface-strong: rgba(255, 255, 255, 0.10);
+      --border: rgba(255, 255, 255, 0.24);
+      --text: #ffffff;
+      --muted: #dce3ff;
+      --soft: #aebcff;
+      --blue: #ffffff;
+      --cyan: #e8edff;
+      --green: #dce3ff;
+      --yellow: #f7f9ff;
+      --orange: #c8d4ff;
+      --pink: #b8c7ff;
+      --purple: #d2dbff;
+      --danger: #dce3ff;
+      --shadow-blue: rgba(255, 255, 255, 0.18);
+      --shadow-pink: rgba(255, 255, 255, 0.08);
+      --radius: 18px;
+      --mono: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 78% 22%, rgba(255,255,255,.18), transparent 26rem),
+        radial-gradient(circle at 12% 72%, rgba(255,255,255,.10), transparent 34rem),
+        linear-gradient(180deg,
+          var(--bg) 0%,
+          var(--bg-2) 48%,
+          #4f55ff 63%,
+          #dfe4ff 74%,
+          #f7f8ff 86%,
+          #ffffff 100%);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.65;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 96px 96px;
+      mask-image: linear-gradient(to bottom, black, transparent 78%);
+      z-index: 0;
+    }
+
+    a { color: inherit; }
+    .page { position: relative; z-index: 1; width: min(1180px, calc(100% - 36px)); margin: 0 auto; }
+    .page::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(180deg, transparent 0%, rgba(0,0,160,.08) 46%, rgba(255,255,255,.18) 60%, rgba(255,255,255,.72) 76%, #ffffff 100%);
+      z-index: -1;
+    }
+
+    nav {
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      padding: 32px 0;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; font-weight: 800; }
+    .brand-text { display: none; }
+    .flower { width: 28px; height: 28px; position: relative; filter: drop-shadow(0 0 18px rgba(96,135,255,.22)); opacity: .9; }
+    .petal { position: absolute; width: 16px; height: 16px; border-radius: 16px 16px 4px 16px; transform-origin: 100% 100%; left: 1px; top: 1px; }
+    .p1, .p2, .p3, .p4, .p5, .p6 { background: linear-gradient(135deg, #f7fbff, #9ed8ff 45%, #2f6f99); }
+    .p1 { transform: rotate(0deg) translate(8px, 8px); }
+    .p2 { transform: rotate(60deg) translate(8px, 8px); }
+    .p3 { transform: rotate(120deg) translate(8px, 8px); }
+    .p4 { transform: rotate(180deg) translate(8px, 8px); }
+    .p5 { transform: rotate(240deg) translate(8px, 8px); }
+    .p6 { transform: rotate(300deg) translate(8px, 8px); }
+    .nav-links { display: flex; align-items: center; gap: 22px; }
+    .nav-links a { text-decoration: none; opacity: .78; transition: opacity .16s, color .16s; }
+    .nav-links a:hover { opacity: 1; color: var(--cyan); }
+
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      text-align: left;
+      padding: 8vh 0 12vh;
+      overflow: hidden;
+    }
+    .hero > div { position: relative; z-index: 2; max-width: 720px; margin: 0; }
+    .hero::before {
+      content: '';
+      position: absolute;
+      width: min(56vw, 720px);
+      aspect-ratio: 1;
+      right: -8vw;
+      top: 12vh;
+      border-radius: 50%;
+      opacity: .58;
+      background:
+        repeating-conic-gradient(from 8deg, rgba(210,239,255,.70) 0deg 1deg, transparent 1deg 6deg),
+        radial-gradient(circle, transparent 0 33%, rgba(210,239,255,.18) 34% 35%, transparent 36% 47%, rgba(210,239,255,.16) 48% 49%, transparent 50%);
+      mask-image: radial-gradient(circle, transparent 0 20%, black 21% 72%, transparent 73%);
+    }
+    .hero::after {
+      content: '';
+      position: absolute;
+      width: min(38vw, 500px);
+      aspect-ratio: 1.18;
+      right: 7vw;
+      top: 28vh;
+      opacity: .52;
+      border: 2px solid rgba(210,239,255,.72);
+      transform: rotate(-8deg);
+      background:
+        linear-gradient(135deg, transparent 0 48%, rgba(255,255,255,.65) 49% 50%, transparent 51%),
+        linear-gradient(45deg, transparent 0 48%, rgba(255,255,255,.40) 49% 50%, transparent 51%),
+        radial-gradient(circle at 50% 50%, rgba(255,255,255,.12), transparent 55%);
+      box-shadow: 0 0 0 18px rgba(255,255,255,.035), 0 0 80px rgba(255,255,255,.15);
+    }
+    .immich-mark {
+      width: 62px;
+      height: 62px;
+      margin-bottom: 24px;
+      display: none;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.34);
+      border-radius: 18px;
+      background: rgba(255,255,255,.075);
+      box-shadow: 0 0 42px rgba(158,216,255,.16);
+    }
+    .immich-mark .flower { width: 34px; height: 34px; }
+    .horizon-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 7vh;
+      height: 34px;
+      opacity: .42;
+      background:
+        linear-gradient(90deg, transparent, rgba(255,255,255,.72), transparent),
+        repeating-linear-gradient(90deg, rgba(255,255,255,.10) 0 18px, rgba(255,255,255,.26) 18px 24px, rgba(255,255,255,.10) 24px 42px);
+      mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
+    }
+    .eyebrow {
+      font-family: var(--mono);
+      color: #ffffff;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 0.82rem;
+      margin-bottom: 18px;
+    }
+    h1 {
+      font-family: var(--serif);
+      font-size: clamp(4.6rem, 9vw, 8.8rem);
+      line-height: .78;
+      letter-spacing: -0.045em;
+      text-transform: uppercase;
+      margin-bottom: 26px;
+    }
+    h1 span {
+      display: block;
+      background: linear-gradient(90deg, #ffffff 0%, #edf1ff 50%, #b6c5ff 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      letter-spacing: -0.065em;
+    }
+    .lede {
+      color: #e2e8ff;
+      font-size: clamp(1.02rem, 1.7vw, 1.24rem);
+      max-width: 760px;
+      margin-bottom: 30px;
+      margin-inline: 0;
+    }
+    .lede strong { color: var(--text); }
+    .actions { display: flex; flex-wrap: wrap; gap: 14px; margin: 28px 0 24px; justify-content: flex-start; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 20px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      border: 1px solid var(--border);
+      transition: transform .16s ease, border-color .16s ease, background .16s ease;
+    }
+    .btn.primary { background: #ffffff; color: #061a2f; border-color: #ffffff; }
+    .btn.secondary { background: rgba(255,255,255,.10); color: var(--text); }
+    .btn.ghost { background: transparent; color: var(--text); border-color: rgba(255,255,255,.36); }
+    .btn:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.55); }
+    .badges { display: none; }
+    .badge {
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: .32rem .72rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: rgba(255,255,255,.035);
+    }
+    .badge.blue,
+    .badge.green,
+    .badge.pink,
+    .badge.yellow { color: var(--cyan); border-color: rgba(96,135,255,.28); }
+
+    .toc {
+      margin: -6vh 0 70px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: rgba(255,255,255,.055);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 24px 90px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .toc a {
+      min-height: 88px;
+      padding: 18px;
+      text-decoration: none;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      transition: background .16s, color .16s;
+    }
+    .toc a:nth-child(4n) { border-right: none; }
+    .toc a:hover { background: rgba(255,255,255,.10); color: var(--text); }
+    .toc-num { display: block; font-family: var(--mono); color: var(--cyan); font-size: .76rem; margin-bottom: 7px; }
+
+    section { margin: 96px 0; scroll-margin-top: 28px; }
+    .section-card {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.06);
+      box-shadow: 0 18px 46px rgba(0,0,0,.18);
+      overflow: hidden;
+      backdrop-filter: blur(18px);
+      isolation: isolate;
+    }
+    .section-card::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.72), transparent);
+      z-index: 1;
+    }
+    .section-card::after {
+      content: '';
+      position: absolute;
+      width: 320px;
+      aspect-ratio: 1;
+      right: -120px;
+      top: -140px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(191,232,255,.16), transparent 64%);
+      z-index: -1;
+    }
+    .section-card:nth-of-type(even)::after {
+      right: auto;
+      left: -140px;
+      top: auto;
+      bottom: -150px;
+      background: radial-gradient(circle, rgba(255,255,255,.10), transparent 64%);
+    }
+    .section-inner { padding: clamp(26px, 5vw, 54px); }
+    .section-kicker { font-family: var(--mono); color: var(--cyan); letter-spacing: .14em; text-transform: uppercase; font-size: .78rem; margin-bottom: 12px; }
+    h2 { font-family: var(--serif); font-size: clamp(2.4rem, 4.6vw, 4.2rem); line-height: .96; letter-spacing: -0.035em; margin-bottom: 20px; }
+    h3 { color: var(--cyan); font-size: 1rem; margin: 26px 0 9px; letter-spacing: -0.01em; }
+    p { color: var(--muted); margin-bottom: 14px; }
+    strong { color: var(--text); }
+    ul, ol { color: var(--muted); padding-left: 1.35rem; margin: 12px 0 18px; }
+    li { margin-bottom: 8px; }
+    code {
+      font-family: var(--mono);
+      color: var(--cyan);
+      background: rgba(255,255,255,.09);
+      border: 1px solid rgba(255,255,255,.16);
+      padding: .12rem .38rem;
+      border-radius: 7px;
+      font-size: .9em;
+    }
+    pre.code {
+      background: #020817;
+      border: 1px solid rgba(255,255,255,.22);
+      border-left: 4px solid rgba(255,255,255,.78);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin: 18px 0 22px;
+      overflow-x: auto;
+      color: #d9e7ff;
+      font-family: var(--mono);
+      font-size: .9rem;
+      line-height: 1.75;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .mini-card {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(255,255,255,.045);
+      padding: 20px;
+      overflow: hidden;
+    }
+    .mini-card::before {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 2px;
+      background: linear-gradient(180deg, transparent, rgba(255,255,255,.55), transparent);
+    }
+    .mini-card b { display: block; color: var(--text); margin-bottom: 7px; }
+    .mini-card span { color: var(--muted); font-size: .94rem; }
+
+    .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 18px 0 8px; }
+    .step {
+      font-family: var(--mono);
+      color: var(--text);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.055);
+      padding: .45rem .76rem;
+      border-radius: 999px;
+      font-size: .78rem;
+    }
+    .step.blue,
+    .step.green,
+    .step.pink { border-color: rgba(96,135,255,.38); color: var(--cyan); }
+    .arrow { color: var(--soft); }
+
+    table { width: 100%; border-collapse: collapse; margin: 18px 0 22px; font-size: .94rem; }
+    th, td { text-align: left; padding: 13px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--cyan); font-family: var(--mono); font-size: .76rem; letter-spacing: .08em; text-transform: uppercase; background: rgba(96,135,255,.045); }
+    td { color: var(--muted); }
+
+    .note, .warn, .tip {
+      margin: 18px 0;
+      border-radius: 16px;
+      padding: 16px 18px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.028);
+      color: var(--muted);
+    }
+    .note, .tip, .warn { border-left: 4px solid var(--blue); }
+    .note b, .tip b, .warn b { color: var(--cyan); }
+
+    .final {
+      position: relative;
+      text-align: center;
+      padding: 84px 0 64px;
+    }
+    .final::before {
+      content: '';
+      display: block;
+      width: min(780px, 86%);
+      height: 1px;
+      margin: 0 auto 68px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.58), transparent);
+    }
+    .final h2 { max-width: 880px; margin: 0 auto 20px; }
+    .final p { max-width: 760px; margin: 0 auto 24px; }
+    footer {
+      color: #0000f2;
+      border-top: 1px solid rgba(0,0,242,.2);
+      padding: 48px 0;
+      font-family: var(--mono);
+      font-size: .78rem;
+      text-align: center;
+      background: #ffffff;
+    }
+
+    /* Hermes-inspired editorial section treatment */
+    .toc {
+      background: #ffffff;
+      color: #0000f2;
+      border-color: rgba(0,0,242,.24);
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+    .toc a {
+      color: #0000f2;
+      border-color: rgba(0,0,242,.20);
+    }
+    .toc a:hover { background: rgba(0,0,242,.055); color: #0000f2; }
+    .toc-num { color: #0000f2; }
+
+    section { margin: 112px 0; }
+    .section-card {
+      border: 1px solid rgba(0,0,242,.18);
+      border-radius: 0;
+      background: #ffffff;
+      color: #0000f2;
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+    .section-card::before {
+      background: linear-gradient(90deg, transparent, rgba(0,0,242,.85), transparent);
+    }
+    .section-card::after {
+      width: min(34vw, 420px);
+      right: 34px;
+      top: 34px;
+      border-radius: 0;
+      opacity: .16;
+      background:
+        repeating-linear-gradient(90deg, #0000f2 0 2px, transparent 2px 12px),
+        repeating-linear-gradient(0deg, #0000f2 0 1px, transparent 1px 14px);
+    }
+    .section-card:nth-of-type(even)::after {
+      right: 34px;
+      left: auto;
+      top: 34px;
+      bottom: auto;
+      background: repeating-conic-gradient(from 0deg, #0000f2 0deg 2deg, transparent 2deg 8deg);
+      mask-image: radial-gradient(circle, black 0 62%, transparent 63%);
+    }
+    .section-kicker, h2, h3, strong, .toc-num { color: #0000f2; }
+    h2 {
+      color: #0000f2;
+      text-transform: uppercase;
+      font-size: clamp(2.7rem, 5vw, 4.8rem);
+      line-height: .88;
+      letter-spacing: -0.045em;
+    }
+    p, ul, ol, td, .mini-card span { color: #1212c8; }
+    code {
+      color: #0000f2;
+      background: rgba(0,0,242,.06);
+      border-color: rgba(0,0,242,.15);
+    }
+    pre.code {
+      background: #030326;
+      border-color: rgba(0,0,242,.28);
+      border-left-color: #0000f2;
+      color: #eef3ff;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .mini-card {
+      background: #ffffff;
+      border-color: rgba(0,0,242,.22);
+    }
+    .mini-card::before { background: linear-gradient(180deg, transparent, rgba(0,0,242,.80), transparent); }
+    .mini-card b { color: #0000f2; }
+    .step {
+      color: #0000f2;
+      border-color: rgba(0,0,242,.22);
+      background: rgba(0,0,242,.045);
+    }
+    .step.blue, .step.green, .step.pink { border-color: rgba(0,0,242,.30); color: #0000f2; }
+    .arrow { color: #0000f2; }
+    th, td { border-bottom-color: rgba(0,0,242,.18); }
+    th { color: #0000f2; background: rgba(0,0,242,.045); }
+    .note, .warn, .tip {
+      color: #1212c8;
+      border-color: rgba(0,0,242,.20);
+      border-left-color: #0000f2;
+      background: rgba(0,0,242,.035);
+    }
+    .note b, .tip b, .warn b { color: #0000f2; }
+    .final h2 { color: #ffffff; }
+    .final p { color: #dce3ff; }
+
+
+    /* Refined proportional geometric artwork */
+    .geometry-field {
+      position: absolute;
+      right: clamp(-90px, -5vw, -36px);
+      top: 50%;
+      width: min(46vw, 560px);
+      aspect-ratio: 1;
+      transform: translateY(-50%);
+      pointer-events: none;
+      z-index: 1;
+      opacity: .95;
+    }
+    .geometry-field span { position: absolute; display: block; }
+    .geo-ring {
+      inset: 8%;
+      border: 2px solid rgba(255,255,255,.58);
+      border-radius: 50%;
+      box-shadow: 0 0 0 22px rgba(255,255,255,.035), inset 0 0 80px rgba(255,255,255,.08);
+    }
+    .geo-ring::before, .geo-ring::after {
+      content: '';
+      position: absolute;
+      inset: 13%;
+      border: 1px solid rgba(255,255,255,.42);
+      border-radius: 50%;
+    }
+    .geo-ring::after { inset: 28%; opacity: .76; }
+    .geo-square {
+      inset: 22%;
+      border: 2px solid rgba(255,255,255,.68);
+      transform: rotate(45deg);
+      background: linear-gradient(135deg, rgba(255,255,255,.08), transparent 58%);
+    }
+    .geo-square::before, .geo-square::after {
+      content: '';
+      position: absolute;
+      inset: 16%;
+      border: 1px solid rgba(255,255,255,.38);
+    }
+    .geo-square::after { inset: 32%; }
+    .geo-lines {
+      inset: 0;
+      background:
+        linear-gradient(90deg, transparent 49.8%, rgba(255,255,255,.52) 50%, transparent 50.2%),
+        linear-gradient(0deg, transparent 49.8%, rgba(255,255,255,.38) 50%, transparent 50.2%),
+        linear-gradient(45deg, transparent 49.85%, rgba(255,255,255,.24) 50%, transparent 50.15%),
+        linear-gradient(-45deg, transparent 49.85%, rgba(255,255,255,.24) 50%, transparent 50.15%);
+      border-radius: 50%;
+      mask-image: radial-gradient(circle, transparent 0 18%, black 19% 74%, transparent 75%);
+    }
+    .geo-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 28px rgba(255,255,255,.75);
+    }
+    .geo-dot.d1 { left: 49%; top: 7.5%; }
+    .geo-dot.d2 { right: 7.5%; top: 49%; }
+    .geo-dot.d3 { left: 49%; bottom: 7.5%; }
+    .geo-dot.d4 { left: 7.5%; top: 49%; }
+
+    .section-card { overflow: hidden; }
+    .section-card::after {
+      width: min(30vw, 360px);
+      aspect-ratio: 1;
+      right: 38px;
+      top: 38px;
+      opacity: .11;
+      background:
+        linear-gradient(45deg, transparent 49%, #0000f2 49.5% 50.5%, transparent 51%),
+        linear-gradient(-45deg, transparent 49%, #0000f2 49.5% 50.5%, transparent 51%),
+        repeating-linear-gradient(90deg, #0000f2 0 1px, transparent 1px 18px),
+        repeating-linear-gradient(0deg, #0000f2 0 1px, transparent 1px 18px);
+      border: 1px solid #0000f2;
+      transform: rotate(0deg);
+    }
+    .section-card:nth-of-type(even)::after {
+      width: min(28vw, 330px);
+      background:
+        radial-gradient(circle, transparent 0 36%, #0000f2 36.5% 37.5%, transparent 38%),
+        conic-gradient(from 45deg, transparent 0 12.5%, #0000f2 12.5% 13%, transparent 13% 25%, #0000f2 25% 25.5%, transparent 25.5%);
+      border-radius: 50%;
+      mask-image: none;
+    }
+
+    .final {
+      margin: 120px auto 0;
+      padding: clamp(56px, 8vw, 92px) clamp(22px, 5vw, 72px);
+      border: 1px solid rgba(255,255,255,.34);
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at 18% 22%, rgba(255,255,255,.20), transparent 32%),
+        radial-gradient(circle at 82% 78%, rgba(255,255,255,.14), transparent 34%),
+        linear-gradient(135deg, #0000f2 0%, #0909b8 100%);
+      box-shadow: 0 38px 100px rgba(0,0,120,.24);
+      overflow: hidden;
+    }
+    .final::before {
+      position: absolute;
+      inset: 22px;
+      width: auto;
+      height: auto;
+      margin: 0;
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 22px;
+      background:
+        linear-gradient(90deg, transparent 49.8%, rgba(255,255,255,.20) 50%, transparent 50.2%),
+        linear-gradient(0deg, transparent 49.8%, rgba(255,255,255,.16) 50%, transparent 50.2%);
+      opacity: .85;
+      pointer-events: none;
+    }
+    .final .eyebrow, .final h2, .final p { position: relative; z-index: 1; }
+    .final h2 { color: #ffffff; text-shadow: 0 2px 24px rgba(0,0,0,.18); }
+    .final p { color: #eef2ff; font-weight: 500; }
+    .final .actions { position: relative; z-index: 1; }
+    .final .btn.secondary { color: #ffffff; border-color: rgba(255,255,255,.58); background: rgba(255,255,255,.12); }
+
+    @media (max-width: 920px) {
+      .geometry-field { opacity: .26; right: -34%; width: 92vw; }
+    }
+
+    @media (max-width: 860px) {
+      .hero { grid-template-columns: 1fr; min-height: auto; padding-top: 38px; }
+      .toc { grid-template-columns: 1fr 1fr; }
+      .toc a:nth-child(2n) { border-right: none; }
+      .grid-2 { grid-template-columns: 1fr; }
+      nav { align-items: flex-start; }
+      .nav-links { display: none; }
+    }
+    @media (max-width: 560px) {
+      .page { width: min(100% - 24px, 1180px); }
+      h1 { font-size: clamp(3rem, 18vw, 5rem); }
+      .toc { grid-template-columns: 1fr; }
+      .toc a { border-right: none; min-height: auto; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+      .actions .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav>
+      <a class="brand" href="#top" aria-label="Immich Selfhosted home">
+        <span class="flower" aria-hidden="true">
+          <span class="petal p1"></span><span class="petal p2"></span><span class="petal p3"></span>
+          <span class="petal p4"></span><span class="petal p5"></span><span class="petal p6"></span>
+        </span>
+          <span class="brand-text">Immich Selfhosted</span>
+      </a>
+      <div class="nav-links">
+        <a href="#overview">Overview</a>
+        <a href="#setup">Setup</a>
+        <a href="#network">Network</a>
+        <a href="#mobile">Mobile</a>
+      </div>
+    </nav>
+
+    <header class="hero" id="top">
+      <div>
+        <div class="immich-mark" aria-label="Immich icon">
+          <span class="flower" aria-hidden="true">
+            <span class="petal p1"></span><span class="petal p2"></span><span class="petal p3"></span>
+            <span class="petal p4"></span><span class="petal p5"></span><span class="petal p6"></span>
+          </span>
+        </div>
+        <div class="eyebrow">Immich / private photo backup</div>
+        <h1>Your Photos. <span>Your Server.</span></h1>
+        <p class="lede">
+          This project is about building something useful at home instead of treating the cloud like magic. Immich gives me a private place for photos and videos, with a clean web app, mobile backup, and control over where the data actually lives.
+        </p>
+        <div class="actions">
+          <a class="btn primary" href="#setup">View the setup</a>
+          <a class="btn secondary" href="#network">Understand the network</a>
+          <a class="btn ghost" href="https://docs.immich.app/install/docker-compose" target="_blank" rel="noopener noreferrer">Official Immich docs</a>
+        </div>
+        <div class="badges">
+          <span class="badge blue">Zorin OS</span>
+          <span class="badge green">Docker Compose</span>
+          <span class="badge pink">Immich</span>
+          <span class="badge yellow">Selfhosted</span>
+        </div>
+      </div>
+
+      <div class="geometry-field" aria-hidden="true">
+        <span class="geo-ring"></span>
+        <span class="geo-square"></span>
+        <span class="geo-lines"></span>
+        <span class="geo-dot d1"></span>
+        <span class="geo-dot d2"></span>
+        <span class="geo-dot d3"></span>
+        <span class="geo-dot d4"></span>
+      </div>
+      <div class="horizon-line" aria-hidden="true"></div>
+
+    </header>
+
+    <div class="toc" aria-label="Table of contents">
+      <a href="#overview"><span class="toc-num">01</span>The Idea</a>
+      <a href="#why"><span class="toc-num">02</span>Why Host It</a>
+      <a href="#requirements"><span class="toc-num">03</span>Requirements</a>
+      <a href="#docker"><span class="toc-num">04</span>Docker Basics</a>
+      <a href="#network"><span class="toc-num">05</span>Network Setup</a>
+      <a href="#setup"><span class="toc-num">06</span>Immich Install</a>
+      <a href="#access"><span class="toc-num">07</span>Web App Access</a>
+      <a href="#mobile"><span class="toc-num">08</span>Mobile Backup</a>
+      <a href="#backup"><span class="toc-num">09</span>Backup Notes</a>
+    </div>
+
+    <section class="section-card" id="overview">
+      <div class="section-inner">
+        <div class="section-kicker">01 / Overview</div>
+        <h2>A small cloud, owned at home.</h2>
+        <p>
+          Immich is an open-source photo and video management platform. It feels familiar if you have used Google Photos, but the important difference is ownership: the server runs on my own machine instead of someone else's cloud.
+        </p>
+        <p>
+          For this project, I kept the setup intentionally simple: <strong>Zorin OS as the host operating system</strong>, <strong>Docker Compose to run the services</strong>, and the Immich web interface available on the local network through port <code>2283</code>.
+        </p>
+        <div class="grid-2">
+          <div class="mini-card"><b>What it does</b><span>Stores photos and videos, organizes them, and allows access from a browser or mobile app.</span></div>
+          <div class="mini-card"><b>Why it matters</b><span>The data stays on hardware I control, with less dependence on external cloud storage.</span></div>
+          <div class="mini-card"><b>How it runs</b><span>Docker Compose starts Immich's services, including the web server, machine learning service, Redis/Valkey, and Postgres database.</span></div>
+          <div class="mini-card"><b>How users connect</b><span>Devices on the same network open <code>http://&lt;server-ip&gt;:2283</code>.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-card" id="why">
+      <div class="section-inner">
+        <div class="section-kicker">02 / Purpose</div>
+        <h2>Ownership feels different.</h2>
+        <p>
+          Selfhosting is cool because it makes technology feel real. Instead of depending on a service I barely control, I can run the software myself, understand the moving parts, and decide how my own data is stored.
+        </p>
+        <p>
+          Privacy does not mean having something to hide. For me, privacy is a principle. It is about respecting personal space, protecting family memories, and choosing not to give away more information than necessary just because the default option makes it convenient.
+        </p>
+        <p>
+          The point of this project was not to overcomplicate the home lab. It was to build something simple, useful, and repeatable: a server that receives uploads from phones and makes those photos available through a clean private interface.
+        </p>
+        <div class="note"><b>Simple idea:</b> keep useful services close, understandable, and under your control.</div>
+      </div>
+    </section>
+
+    <section class="section-card" id="requirements">
+      <div class="section-inner">
+        <div class="section-kicker">03 / Requirements</div>
+        <h2>Small requirements. Real utility.</h2>
+        <p>
+          Immich can run on many systems, but it should not be treated like a tiny background script. It processes photos, generates thumbnails, indexes metadata, and runs a database. The official quick-start path recommends at least:
+        </p>
+        <table>
+          <thead><tr><th>Requirement</th><th>Recommended minimum</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td>CPU</td><td>2 cores or better</td><td>Photo processing and background jobs need compute power.</td></tr>
+            <tr><td>Memory</td><td>6GB RAM or better</td><td>Immich runs multiple containers and services.</td></tr>
+            <tr><td>Storage</td><td>Enough space for your library</td><td>Photos and videos can grow quickly over time.</td></tr>
+            <tr><td>Software</td><td>Zorin OS + Docker Engine + Docker Compose plugin</td><td>Immich requires Docker with the modern Compose plugin for the recommended deployment path.</td></tr>
+          </tbody>
+        </table>
+        <div class="tip"><b>Practical note:</b> for a real family photo server, storage planning matters more than the install itself. The installation is simple; the long-term value depends on having enough disk space and a backup plan.</div>
+      </div>
+    </section>
+
+    <section class="section-card" id="docker">
+      <div class="section-inner">
+        <div class="section-kicker">04 / Docker Setup</div>
+        <h2>Prepare Docker before Immich.</h2>
+        <p>
+          Immich's recommended installation path uses Docker Compose, so the server needs Docker Engine and the Docker Compose plugin before the Immich files are started.
+        </p>
+
+        <h3>Step 1 — Download and run Docker's official convenience script</h3>
+        <pre class="code">curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh</pre>
+
+        <p>
+          Docker's convenience script is a quick way to install Docker on Linux by detecting the distribution, configuring Docker's package source, installing required packages, and preparing the Docker service.
+        </p>
+
+        <div class="note"><b>Fact check:</b> this is Docker's convenience script, not Immich's install script. Docker documents it for quick non-interactive setup, while Immich recommends Docker Compose for production deployments.</div>
+
+        <h3>Step 2 — Verify Docker and Compose</h3>
+        <p>
+          After installation, Docker was checked from the terminal to confirm that the command, service, and Compose plugin were available.
+        </p>
+        <pre class="code">sudo docker --version
+sudo docker compose version
+sudo systemctl status docker</pre>
+
+        <div class="tip"><b>Verification:</b> <code>docker --version</code> confirms the Docker CLI, <code>docker compose version</code> confirms the Compose plugin, and <code>systemctl status docker</code> confirms that the Docker service is running.</div>
+
+        <h3>Why Docker Compose?</h3>
+        <p>
+          Immich is made of multiple services, including the web application, database, machine learning service, and cache layer. Docker Compose keeps those services organized and allows the full Immich stack to run from a single configuration file.
+        </p>
+
+        <div class="flow" aria-label="Docker service flow">
+          <span class="step blue">Docker Engine</span><span class="arrow">→</span>
+          <span class="step">Compose Plugin</span><span class="arrow">→</span>
+          <span class="step pink">PostgreSQL / Redis</span><span class="arrow">→</span>
+          <span class="step green">Immich Services</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-card" id="network">
+      <div class="section-inner">
+        <div class="section-kicker">05 / Network</div>
+        <h2>Local first, easy to reach.</h2>
+        <p>
+          The Immich server lives on the local network like any other device. The router gives it a local IP address, and other devices connect to that IP using Immich's web port: <code>2283</code>.
+        </p>
+        <h3>Access pattern</h3>
+        <pre class="code">http://&lt;server-ip-address&gt;:2283</pre>
+        <p>
+          Example: if the Zorin OS machine receives the local IP <code>192.168.1.50</code>, the Immich web app would be opened at <code>http://192.168.1.50:2283</code>.
+        </p>
+        <h3>Recommended router setting</h3>
+        <p>
+          The cleanest setup is to create a <strong>DHCP reservation</strong> on the router. That means the router always gives the Zorin OS server the same local IP address. This avoids the server IP changing later and breaking the saved Immich address on phones or browsers.
+        </p>
+        <div class="warn"><b>Keep it simple:</b> this page describes a local-network setup. If this server is ever exposed outside the home network, it should be done carefully with HTTPS, strong authentication, updates, and a real security plan.</div>
+      </div>
+    </section>
+
+    <section class="section-card" id="setup">
+      <div class="section-inner">
+        <div class="section-kicker">06 / Immich Setup</div>
+        <h2>Install Immich with Docker Compose.</h2>
+        <p>
+          Immich officially recommends Docker Compose for production. The process is simple: create a project folder, download the official compose and environment files, customize the environment values, and start the stack in the background.
+        </p>
+        <div class="tip"><b>Official reference:</b> this section follows Immich's Docker Compose recommended installation path. Immich's separate install script is marked experimental and is not the recommended production method.</div>
+
+        <h3>Step 1 — Create the project folder</h3>
+        <pre class="code">mkdir ./immich-app
+cd ./immich-app</pre>
+
+        <h3>Step 2 — Download the official files</h3>
+        <pre class="code">wget -O docker-compose.yml https://github.com/immich-app/immich/releases/latest/download/docker-compose.yml
+wget -O .env https://github.com/immich-app/immich/releases/latest/download/example.env</pre>
+
+        <p>
+          The second command downloads Immich's example environment file and saves it directly as <code>.env</code>, which is the filename Docker Compose expects.
+        </p>
+
+        <h3>Step 3 — Edit the <code>.env</code> file</h3>
+        <p>
+          The key values are the media upload location, database location, timezone, Immich version, and database password.
+        </p>
+        <pre class="code"># Where uploaded photos and videos are stored
+UPLOAD_LOCATION=./library
+
+# Where database files are stored
+DB_DATA_LOCATION=./postgres
+
+# Set your timezone by uncommenting and editing this value
+TZ=America/New_York
+
+# Immich version. This can be pinned to a specific release if needed.
+IMMICH_VERSION=v2
+
+# Change this to a custom alphanumeric password
+DB_PASSWORD=ChangeThisPassword123</pre>
+
+        <div class="note"><b>Important:</b> <code>UPLOAD_LOCATION</code> should point to a new directory with enough free space. Immich also recommends changing <code>DB_PASSWORD</code> to a custom value using only <code>A-Za-z0-9</code> characters.</div>
+
+        <h3>Step 4 — Start the containers</h3>
+        <pre class="code">docker compose up -d</pre>
+        <p>
+          Run this from the folder containing <code>docker-compose.yml</code> and <code>.env</code>. Docker Compose starts Immich as a background service, and the web app becomes available on port <code>2283</code> once the containers are healthy.
+        </p>
+
+        <div class="warn"><b>Command note:</b> the correct modern command is <code>docker compose</code>, not <code>docker-compose</code>. If Docker reports a Compose or health check error, verify that Docker Engine and the Compose plugin are current.</div>
+      </div>
+    </section>
+
+    <section class="section-card" id="access">
+      <div class="section-inner">
+        <div class="section-kicker">07 / Web App</div>
+        <h2>The first account becomes home base.</h2>
+        <p>
+          The first account created in Immich becomes the admin user. From a browser on the same network, open the server address:
+        </p>
+        <pre class="code">http://&lt;server-ip-address&gt;:2283</pre>
+        <ol>
+          <li>Open the Immich web app in a browser.</li>
+          <li>Click <strong>Getting Started</strong>.</li>
+          <li>Create the first user account. This becomes the admin account.</li>
+          <li>Log in and upload a test photo from the browser.</li>
+        </ol>
+        <p>
+          After this, the server is usable. You can upload from the web UI, manage users, and confirm that the storage path is working before moving on to phone backups.
+        </p>
+      </div>
+    </section>
+
+    <section class="section-card" id="mobile">
+      <div class="section-inner">
+        <div class="section-kicker">08 / Mobile Backup</div>
+        <h2>The phone is where it clicks.</h2>
+        <p>
+          The web app is great for testing, but the real value is mobile backup. Install the Immich app on your phone, connect it to the server URL, choose which albums to back up, and enable backup.
+        </p>
+        <table>
+          <thead><tr><th>Step</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Install the Immich mobile app from the app store or official release source.</td></tr>
+            <tr><td>2</td><td>Enter the server endpoint: <code>http://&lt;server-ip-address&gt;:2283</code>.</td></tr>
+            <tr><td>3</td><td>Log in with the user account created on the web app.</td></tr>
+            <tr><td>4</td><td>Open the backup screen using the cloud icon.</td></tr>
+            <tr><td>5</td><td>Select the albums to back up and press <strong>Enable Backup</strong>.</td></tr>
+          </tbody>
+        </table>
+        <div class="tip"><b>Good first test:</b> upload only a few photos at first. Once the server processes them correctly, enable larger album backups.</div>
+      </div>
+    </section>
+
+    <section class="section-card" id="backup">
+      <div class="section-inner">
+        <div class="section-kicker">09 / Backups</div>
+        <h2>Keep the memories backed up.</h2>
+        <p>
+          Immich stores and organizes the media, but the server still needs a real backup strategy. The database contains metadata and user information. The actual photos and videos live in the path configured as <code>UPLOAD_LOCATION</code>.
+        </p>
+        <div class="warn"><b>Do not skip this:</b> back up both the database and the uploaded media files. If you only back up the database, you do not have the photos. If you only back up the photos, you may lose metadata, users, albums, and application state.</div>
+        <div class="grid-2">
+          <div class="mini-card"><b>Database</b><span>Contains metadata, users, albums, and Immich application information.</span></div>
+          <div class="mini-card"><b>Upload library</b><span>Contains the actual photos and videos. This is the most important data.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="final" id="final">
+      <div class="eyebrow">Final result</div>
+      <h2>A useful system, not just a lab experiment.</h2>
+      <p>
+        This project was worth it because it stayed understandable. The server runs locally, the services are organized with Docker, the network setup is simple, and phones can back up directly to a private photo library at home.
+      </p>
+      <div class="actions" style="justify-content:center">
+        <a class="btn primary" href="#top">Back to top</a>
+        <a class="btn secondary" href="#setup">Review commands</a>
+      </div>
+    </section>
+
+    <footer>
+      <span>&copy; 2026 Del Risco Technologies</span>
+
+    </footer>
+  </div>
+</body>
+</html>
